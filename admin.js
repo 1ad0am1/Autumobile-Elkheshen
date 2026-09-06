@@ -1,23 +1,77 @@
-let products=[];let editingId='';
-const $=s=>document.querySelector(s);
-const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const pass=()=>$('#pass').value.trim()||sessionStorage.getItem('elk_admin_pass')||'';
-function toast(msg,type=''){const t=$('#toast');t.textContent=msg;t.className='toast show '+type;clearTimeout(window.__toast);window.__toast=setTimeout(()=>t.className='toast',3200)}
-async function api(url,options={}){const headers={...(options.headers||{}),'x-admin-password':pass()};const r=await fetch(url,{...options,headers});let d={};try{d=await r.json()}catch{}if(!r.ok)throw Object.assign(new Error(d.error||`تعذر تنفيذ الطلب (${r.status}).`),{status:r.status,data:d});return d}
-function imageList(p){return (Array.isArray(p.images)&&p.images.length?p.images:[p.image]).filter(Boolean)}
-function stats(){const total=products.length,sold=products.filter(p=>p.status==='sold').length;$('#statTotal').textContent=total;$('#statAvailable').textContent=total-sold;$('#statSold').textContent=sold;$('#statImages').textContent=products.reduce((n,p)=>n+imageList(p).length,0)}
-function render(){stats();const q=$('#inventorySearch').value.trim().toLowerCase();const list=products.filter(p=>String(p.name||'').toLowerCase().includes(q));$('#adminList').innerHTML=list.map(p=>{const imgs=imageList(p);const sold=p.status==='sold';return `<article class="car-row"><div class="car-thumb">${imgs[0]?`<img src="${esc(imgs[0])}" alt="">`:''}</div><div><div class="car-name">${esc(p.name||'سيارة بدون اسم')}</div><div class="car-meta">${Number(p.price||0).toLocaleString('ar-EG')} ج.م • ${imgs.length} صور${p.year?' • '+esc(p.year):''}</div><span class="badge ${sold?'sold':'available'}">${sold?'● مباعة':'● متاحة للبيع'}</span></div><div class="row-actions"><button class="admin-btn" onclick="editProduct('${esc(p.id)}')">تعديل</button><button class="admin-btn danger" onclick="delProduct('${esc(p.id)}')">حذف</button></div></article>`}).join('')||'<div class="empty-state">لا توجد سيارات مطابقة للبحث.</div>'}
-async function refresh(){ $('#adminList').innerHTML='<div class="loading">جاري تحديث السيارات...</div>';try{products=await api('/api/admin/products');render()}catch(e){$('#adminList').innerHTML=`<div class="empty-state">تعذر تحميل السيارات.<br><small>${esc(e.message)}</small></div>`;throw e}}
-function showDashboard(){ $('#loginPanel').classList.add('hidden');$('#dashboard').classList.remove('hidden');refresh().catch(e=>{toast(e.message,'err')}) }
-function logout(){sessionStorage.removeItem('elk_admin_pass');editingId='';$('#dashboard').classList.add('hidden');$('#loginPanel').classList.remove('hidden');$('#pass').value='';$('#loginStatus').textContent='';$('#productForm').reset()}
-function resetForm(){const f=$('#productForm');f.reset();editingId='';f.elements.id.value='';f.elements.status.value='available';$('#formTitle').textContent='إضافة سيارة جديدة';$('#imagePreview').innerHTML='';$('#uploadStatus').textContent='';$('#saveBtn').textContent='حفظ السيارة';scrollTo({top:0,behavior:'smooth'})}
-window.editProduct=id=>{const p=products.find(x=>String(x.id)===String(id));if(!p)return;const f=$('#productForm');editingId=p.id;['id','name','price','year','category','transmission','fuel','badge','description','status'].forEach(k=>f.elements[k].value=p[k]??'');f.elements.images.value=imageList(p).join('\n');renderPreview();$('#formTitle').textContent='تعديل بيانات السيارة';$('#saveBtn').textContent='حفظ التعديلات';scrollTo({top:0,behavior:'smooth'})};
-window.delProduct=async id=>{const p=products.find(x=>String(x.id)===String(id));if(!p||!confirm(`هل تريد حذف سيارة "${p.name}" نهائيًا؟`))return;try{await api('/api/admin/products/'+encodeURIComponent(id),{method:'DELETE'});toast('تم حذف السيارة بنجاح','ok');if(editingId===id)resetForm();await refresh()}catch(e){toast(e.message,'err')}};
-function renderPreview(){const ta=$('#productForm').elements.images;const urls=ta.value.split(/\r?\n+/).map(x=>x.trim()).filter(Boolean);$('#imagePreview').innerHTML=urls.map((u,i)=>`<div class="preview-item"><img src="${esc(u)}" alt=""><button class="remove-img" type="button" onclick="removeImage(${i})">×</button></div>`).join('')}
-window.removeImage=i=>{const ta=$('#productForm').elements.images;const a=ta.value.split(/\r?\n+/).map(x=>x.trim()).filter(Boolean);a.splice(i,1);ta.value=a.join('\n');renderPreview()};
-$('#loginBtn').onclick=async()=>{const password=$('#pass').value.trim();if(!password){$('#loginStatus').textContent='اكتب كلمة المرور أولًا.';return}const b=$('#loginBtn');b.disabled=true;b.textContent='جاري التحقق...';$('#loginStatus').textContent='';try{sessionStorage.setItem('elk_admin_pass',password);await api('/api/admin/products');$('#loginStatus').textContent='تم التحقق بنجاح.';$('#loginStatus').className='status-box ok';showDashboard()}catch(e){sessionStorage.removeItem('elk_admin_pass');$('#loginStatus').className='status-box';$('#loginStatus').textContent=e.status===401?'كلمة المرور غير صحيحة.':`تعذر الاتصال بلوحة الإدارة: ${e.message}`; }finally{b.disabled=false;b.textContent='دخول لوحة التحكم'}};
-$('#healthBtn').onclick=async()=>{const b=$('#healthBtn');b.disabled=true;b.textContent='جاري اختبار الاتصال...';try{const d=await api('/api/health',{headers:{'x-admin-password':''}});$('#loginStatus').className='status-box ok';$('#loginStatus').textContent='النظام متصل ويستجيب بشكل صحيح.';toast('الاتصال بالسيرفر سليم','ok')}catch(e){$('#loginStatus').className='status-box';$('#loginStatus').textContent=`فشل اختبار الاتصال: ${e.message}`;toast('يوجد خطأ في اتصال السيرفر','err')}finally{b.disabled=false;b.textContent='اختبار اتصال النظام'}};
-$('#pass').addEventListener('keydown',e=>{if(e.key==='Enter')$('#loginBtn').click()});$('#logoutBtn').onclick=logout;$('#refreshBtn').onclick=()=>refresh().catch(()=>{});$('#resetBtn').onclick=resetForm;$('#inventorySearch').addEventListener('input',render);$('#productForm').elements.images.addEventListener('input',renderPreview);
-$('#productForm').onsubmit=async e=>{e.preventDefault();const b=$('#saveBtn');b.disabled=true;b.textContent='جاري الحفظ...';try{const fd=new FormData(e.target);if(editingId)fd.set('id',editingId);await api('/api/admin/products',{method:'POST',body:fd});toast(editingId?'تم تحديث السيارة بنجاح':'تمت إضافة السيارة بنجاح','ok');resetForm();await refresh()}catch(err){toast(err.message,'err')}finally{b.disabled=false;b.textContent=editingId?'حفظ التعديلات':'حفظ السيارة'}};
-$('#imageFiles').addEventListener('change',async e=>{const files=[...e.target.files];if(!files.length)return;const status=$('#uploadStatus'),ta=$('#productForm').elements.images,allowed=['image/jpeg','image/png','image/webp','image/gif'];if(files.length>12){status.textContent='يمكن اختيار 12 صورة كحد أقصى في المرة الواحدة.';return}if(files.some(f=>!allowed.includes(f.type))){status.textContent='مسموح فقط JPG وPNG وWEBP وGIF.';return}if(files.some(f=>f.size>2*1024*1024)){status.textContent='حجم كل صورة يجب ألا يتجاوز 2 ميجابايت.';return}const old=ta.value.split(/\r?\n+/).map(x=>x.trim()).filter(Boolean);let urls=[];try{for(let i=0;i<files.length;i++){status.className='status-box';status.textContent=`جاري رفع الصورة ${i+1} من ${files.length}...`;const fd=new FormData();fd.append('images',files[i]);const d=await api('/api/admin/upload-images',{method:'POST',body:fd});urls.push(...(d.urls||[]))}ta.value=[...old,...urls].join('\n');renderPreview();status.className='status-box ok';status.textContent=`تم رفع ${urls.length} صورة. اضغط حفظ السيارة.`;e.target.value=''}catch(err){status.className='status-box';status.textContent=err.message}});
-const saved=sessionStorage.getItem('elk_admin_pass');if(saved){$('#pass').value=saved;api('/api/admin/products').then(showDashboard).catch(()=>sessionStorage.removeItem('elk_admin_pass'))}
+const $=id=>document.getElementById(id);
+let products=[], selectedImages=[], password='';
+function enc(v){return btoa(unescape(encodeURIComponent(String(v||''))))}
+async function api(url,opt={}){
+ const headers={...(opt.headers||{})};
+ if(!opt.skipAuth) headers['x-admin-password-b64']=enc(password);
+ let r;
+ try{r=await fetch(url,{...opt,headers})}catch(e){throw new Error('تعذر الاتصال بالخادم: '+e.message)}
+ let text=await r.text(), data;
+ try{data=JSON.parse(text)}catch{data={error:text||'استجابة غير صالحة'}}
+ if(!r.ok) throw new Error((data&&data.error)||`تعذر تنفيذ الطلب (${r.status})`);
+ return data;
+}
+function msg(t,ok=false){$('msg').textContent=t;$('msg').style.color=ok?'#18733d':'#c62828'}
+async function health(){
+ try{let d=await api('/api/health',{skipAuth:true});msg('الاتصال بالخادم يعمل ✓',true);return d}catch(e){msg(e.message);throw e}
+}
+$('healthBtn').onclick=()=>health().catch(()=>{});
+$('loginBtn').onclick=login;
+$('password').onkeydown=e=>{if(e.key==='Enter')login()};
+async function login(){
+ password=$('password').value;
+ if(!password){msg('اكتب كلمة المرور أولاً');return}
+ try{
+   await api('/api/admin/products');
+   sessionStorage.setItem('admin_password',password);
+   $('login').style.display='none';$('app').style.display='block';msg('');
+   await load();
+ }catch(e){msg(e.message)}
+}
+async function load(){
+ try{
+  let d=await api('/api/admin/products'); products=Array.isArray(d)?d:(d.products||[]);
+  render();
+ }catch(e){alert(e.message)}
+}
+function render(){
+ let q=$('search').value.trim().toLowerCase();
+ let list=products.filter(x=>(x.name||'').toLowerCase().includes(q));
+ $('total').textContent=products.length;
+ $('available').textContent=products.filter(x=>x.status!=='sold').length;
+ $('sold').textContent=products.filter(x=>x.status==='sold').length;
+ $('cars').innerHTML=list.map(x=>{
+  let im=(x.images&&x.images[0])||x.image||'/assets/logo.jpg';
+  return `<div class="car"><img src="${esc(im)}"><div><b>${esc(x.name||'بدون اسم')}</b><div class="muted">${esc(x.price||'')} ${esc(x.year||'')}</div><span class="status ${x.status==='sold'?'danger':'ok'}">${x.status==='sold'?'مباعة':'متاحة'}</span></div><div class="actions"><button class="small" onclick="editCar('${esc(x.id)}')">تعديل</button><button class="small danger" onclick="deleteCar('${esc(x.id)}')">حذف</button></div></div>`
+ }).join('')||'<div class="muted">لا توجد سيارات.</div>';
+}
+function esc(v){return String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
+$('search').oninput=render;
+$('images').onchange=e=>{
+ [...e.target.files].forEach(f=>{let r=new FileReader();r.onload=()=>{selectedImages.push(r.result);preview()};r.readAsDataURL(f)});
+ e.target.value='';
+};
+function preview(){$('preview').innerHTML=selectedImages.map((s,i)=>`<div class="thumb"><img src="${s}"><button onclick="selectedImages.splice(${i},1);preview()">×</button></div>`).join('')}
+$('save').onclick=save;
+$('cancel').onclick=reset;
+async function save(){
+ let id=$('id').value;
+ let p={id:id||undefined,name:$('name').value.trim(),price:$('price').value.trim(),year:$('year').value.trim(),transmission:$('transmission').value.trim(),fuel:$('fuel').value.trim(),description:$('description').value.trim(),images:selectedImages,status:'available'};
+ if(!p.name){alert('اكتب اسم السيارة');return}
+ try{
+  await api(id?`/api/admin/products/${encodeURIComponent(id)}`:'/api/admin/products',{method:id?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(p)});
+  alert('تم الحفظ بنجاح');reset();await load();
+ }catch(e){alert(e.message)}
+}
+window.editCar=function(id){
+ let x=products.find(p=>String(p.id)===String(id));if(!x)return;
+ $('id').value=x.id||'';$('name').value=x.name||'';$('price').value=x.price||'';$('year').value=x.year||'';$('transmission').value=x.transmission||'';$('fuel').value=x.fuel||'';$('description').value=x.description||'';selectedImages=[...(x.images||[])];preview();$('formTitle').textContent='تعديل سيارة';$('cancel').style.display='block';scrollTo({top:0,behavior:'smooth'});
+}
+window.deleteCar=async function(id){
+ if(!confirm('هل أنت متأكد من حذف السيارة؟'))return;
+ try{await api('/api/admin/products/'+encodeURIComponent(id),{method:'DELETE'});await load()}catch(e){alert(e.message)}
+}
+function reset(){$('id').value='';$('name').value='';$('price').value='';$('year').value='';$('transmission').value='';$('fuel').value='';$('description').value='';selectedImages=[];preview();$('formTitle').textContent='إضافة سيارة';$('cancel').style.display='none'}
+$('logout').onclick=()=>{sessionStorage.removeItem('admin_password');password='';location.reload()}
+password=sessionStorage.getItem('admin_password')||'';
+if(password){login()}

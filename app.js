@@ -1,14 +1,85 @@
-const WA='201119295523';let products=[];let cart=JSON.parse(localStorage.getItem('elkheshenCart')||'[]');let currentFilter='all';const $=s=>document.querySelector(s);const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));const js=v=>String(v??'').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-async function load(){try{const r=await fetch('/api/products',{cache:'no-store'});if(!r.ok)throw new Error(`API ${r.status}`);products=await r.json();render()}catch{$('#productsGrid').innerHTML='<div class="empty">تعذر تحميل السيارات حاليًا.</div>'}}
-function imgs(p){return Array.isArray(p.images)&&p.images.length?p.images.filter(Boolean):[p.image].filter(Boolean)}
-function category(p){const s=(p.category||p.type||p.name||'').toLowerCase();if(/suv|jeep|تويوتا راش|سبورتاج|توسان|كريتا|كابتيفا/.test(s))return'suv';if(/sedan|سيدان|e200|c200|النترا|صني|لوجان|bmw 3|a6/.test(s))return'sedan';return'other'}
-function render(){const list=currentFilter==='all'?products:products.filter(p=>category(p)===currentFilter);$('#productsGrid').innerHTML=list.length?list.map(card).join(''):'<div class="empty">لا توجد سيارات في هذا التصنيف حاليًا.</div>'}
-function card(p){const pic=imgs(p)[0]||'https://images.unsplash.com/photo-1553440569-bcc63803a83d?auto=format&fit=crop&w=900&q=80';const sold=p.status==='sold';return `<article class="car-card ${sold?'sold':''}"><div class="car-image"><img src="${esc(pic)}" alt="${esc(p.name)}" onerror="this.src='https://images.unsplash.com/photo-1553440569-bcc63803a83d?auto=format&fit=crop&w=900&q=80'">${sold?'<div class="sold-overlay"><span>مبــــاع</span></div>':''}<button class="heart" onclick="openProduct('${js(p.id)}')">♡</button>${p.badge?`<span class="car-badge">${esc(p.badge)}</span>`:''}</div><div class="car-body"><div class="car-title"><h3>${esc(p.name)}</h3><span class="year">${esc(p.year||'متاح')}</span></div><div class="specs"><span class="spec">⚙ ${esc(p.transmission||'أوتوماتيك')}</span><span class="spec">⛽ ${esc(p.fuel||'بنزين')}</span><span class="spec">📍 الإسكندرية</span></div><div class="car-price">${Number(p.price||0).toLocaleString('ar-EG')} ج.م</div><div class="car-actions"><button class="btn ${sold?'sold-btn':'btn-primary'}" ${sold?'disabled':''} onclick="${sold?'return false':`add('${js(p.id)}')`}">${sold?'السيارة مباعة':'أضف للسلة 🛒'}</button><button class="icon-action" onclick="openProduct('${js(p.id)}')">↗</button></div></div></article>`}
-function add(id){const p=products.find(x=>x.id===id);if(!p)return;const i=cart.find(x=>x.id===id);if(i)i.qty++;else cart.push({id,qty:1});save();openCart()}
-function save(){localStorage.setItem('elkheshenCart',JSON.stringify(cart));updateCount()}function updateCount(){$('#cartCount').textContent=cart.reduce((a,x)=>a+x.qty,0)}
-function openCart(){$('#cartModal').classList.remove('hidden');renderCart()}function renderCart(){const box=$('#cartItems');if(!cart.length){box.innerHTML='<div class="empty">السلة فارغة. اختار سيارة وأضفها للسلة.</div>';$('#cartTotal').textContent='0';return}box.innerHTML=cart.map(i=>{const p=products.find(x=>x.id===i.id);if(!p)return'';const pic=imgs(p)[0]||'';return `<div class="cart-row"><img class="cart-thumb" src="${esc(pic)}"><div class="cart-product-info"><b>${esc(p.name)}</b><br><small>${Number(p.price).toLocaleString('ar-EG')} ج.م</small></div><div class="qty"><button onclick="changeQty('${js(i.id)}',-1)">−</button>${i.qty}<button onclick="changeQty('${js(i.id)}',1)">+</button></div></div>`}).join('');$('#cartTotal').textContent=cart.reduce((n,i)=>n+i.qty,0)}
-function changeQty(id,d){const i=cart.find(x=>x.id===id);if(!i)return;i.qty+=d;if(i.qty<=0)cart=cart.filter(x=>x.id!==id);save();renderCart()}
-function openProduct(id){const p=products.find(x=>x.id===id);if(!p)return;const list=imgs(p);const m=$('#productModal');m.innerHTML=`<div class="modal-card product-detail"><button class="close" onclick="closeProduct()">×</button><div class="detail-main"><img id="detailMainImg" src="${esc(list[0]||'')}" alt="${esc(p.name)}"></div><div class="detail-thumbs">${list.map((im,i)=>`<button class="detail-thumb ${i===0?'active':''}" onclick="showDetailImage(${i})"><img src="${esc(im)}"></button>`).join('')}</div>${p.badge?`<span class="car-badge">${esc(p.badge)}</span>`:''}<h2>${esc(p.name)}</h2><p class="detail-desc">${esc(p.description||'تفاصيل السيارة والتجهيزات والمعلومات ستظهر هنا.')}</p><div class="detail-info"><b>بيانات السيارة</b><p>للاستفسار عن الحالة والتفاصيل والمواعيد تواصل معنا مباشرة على واتساب.</p></div><div class="car-price">${Number(p.price||0).toLocaleString('ar-EG')} ج.م</div><button class="btn btn-primary full" onclick="add('${js(p.id)}');closeProduct()">أضف للسلة 🛒</button></div>`;m.dataset.images=JSON.stringify(list);m.classList.remove('hidden')}
-function showDetailImage(i){const m=$('#productModal'),list=JSON.parse(m.dataset.images||'[]');if(list[i])$('#detailMainImg').src=list[i];document.querySelectorAll('.detail-thumb').forEach((b,n)=>b.classList.toggle('active',n===i))}function closeProduct(){$('#productModal').classList.add('hidden')}
-$('#cartBtn').onclick=openCart;$('#checkoutBtn').onclick=()=>{if(!cart.length)return alert('السلة فارغة');$('#cartModal').classList.add('hidden');$('#orderModal').classList.remove('hidden')};document.querySelectorAll('[data-close]').forEach(b=>b.onclick=()=>b.closest('.modal').classList.add('hidden'));$('#orderForm').onsubmit=e=>{e.preventDefault();const f=new FormData(e.target);const lines=cart.map(i=>{const p=products.find(x=>x.id===i.id);return `• ${p?.name||i.id} × ${i.qty}`}).join('%0A');const msg=`مرحبًا، أريد الاستفسار عن السيارات التالية من Automobile Elkheshen.%0A%0A${lines}%0A%0Aالاسم: ${encodeURIComponent(f.get('customer'))}%0Aالهاتف: ${encodeURIComponent(f.get('phone'))}%0Aالعنوان: ${encodeURIComponent(f.get('address'))}%0Aملاحظات: ${encodeURIComponent(f.get('note')||'لا يوجد')}`;window.open(`https://wa.me/${WA}?text=${msg}`,'_blank');cart=[];save();e.target.reset();$('#orderModal').classList.add('hidden')};
-document.querySelectorAll('.filter').forEach(b=>b.onclick=()=>{document.querySelectorAll('.filter').forEach(x=>x.classList.remove('active'));b.classList.add('active');currentFilter=b.dataset.filter;render()});$('#mobileMenu').onclick=()=>$('#mainNav').classList.toggle('open');document.querySelectorAll('#mainNav a').forEach(a=>a.onclick=()=>$('#mainNav').classList.remove('open'));updateCount();load();
+const express=require('express');
+const multer=require('multer');
+const crypto=require('crypto');
+const app=express();
+const upload=multer({storage:multer.memoryStorage(),limits:{fileSize:10*1024*1024,files:20}});
+app.use(express.json({limit:'20mb'}));
+app.use(express.urlencoded({extended:true,limit:'20mb'}));
+const DEFAULT_PRODUCTS=[
+ {id:'demo-1',name:'Mercedes-Benz C180',price:'تواصل معنا',year:'2024',transmission:'أوتوماتيك',fuel:'بنزين',description:'سيارة متاحة لدى Automobile Elkheshen',images:[],status:'available'}
+];
+function passwordOf(req){
+ const b=req.headers['x-admin-password-b64'];
+ if(b){try{return Buffer.from(String(b),'base64').toString('utf8')}catch{}}
+ return req.headers['x-admin-password']||'';
+}
+function auth(req,res,next){
+ const expected=process.env.ADMIN_PASSWORD;
+ if(!expected)return res.status(500).json({error:'ADMIN_PASSWORD غير مضبوط في Vercel Environment Variables.'});
+ if(passwordOf(req)!==expected)return res.status(401).json({error:'كلمة المرور غير صحيحة.'});
+ next();
+}
+function normalizePath(req){
+ let p=req.path||'/';
+ if(p.startsWith('/api'))p=p.slice(4)||'/';
+ return p;
+}
+function clean(p){
+ return {id:String(p.id||crypto.randomUUID()),name:String(p.name||''),price:String(p.price||''),year:String(p.year||''),transmission:String(p.transmission||''),fuel:String(p.fuel||''),description:String(p.description||''),images:Array.isArray(p.images)?p.images:[],status:p.status==='sold'?'sold':'available'};
+}
+async function github(method,path,body){
+ const token=process.env.GITHUB_TOKEN, repo=process.env.GITHUB_REPO, branch=process.env.GITHUB_BRANCH||'main';
+ if(!token||!repo) return null;
+ const url=`https://api.github.com/repos/${repo}/contents/${path}`;
+ const h={Authorization:`Bearer ${token}`,Accept:'application/vnd.github+json','User-Agent':'Automobile-Elkheshen-Admin'};
+ if(method==='GET'){let r=await fetch(`${url}?ref=${encodeURIComponent(branch)}`,{headers:h});if(r.status===404)return null;if(!r.ok)throw new Error('GitHub read failed');return r.json()}
+ let r=await fetch(url,{method,headers:{...h,'Content-Type':'application/json'},body:JSON.stringify(body)});let t=await r.text();if(!r.ok)throw new Error('GitHub write failed: '+t.slice(0,200));return JSON.parse(t);
+}
+async function readProducts(){
+ try{
+  const path=process.env.GITHUB_PRODUCTS_PATH||'data/products.json';
+  const f=await github('GET',path);
+  if(!f)return DEFAULT_PRODUCTS;
+  const raw=Buffer.from(f.content,'base64').toString('utf8');
+  const arr=JSON.parse(raw);return Array.isArray(arr)?arr.map(clean):DEFAULT_PRODUCTS;
+ }catch(e){return DEFAULT_PRODUCTS}
+}
+async function writeProducts(arr){
+ const path=process.env.GITHUB_PRODUCTS_PATH||'data/products.json';
+ const old=await github('GET',path);
+ const content=Buffer.from(JSON.stringify(arr.map(clean),null,2),'utf8').toString('base64');
+ await github('PUT',path,{message:'Update car inventory',content,branch:process.env.GITHUB_BRANCH||'main',...(old?.sha?{sha:old.sha}:{})});
+ return arr;
+}
+async function uploadImage(buffer,originalname){
+ const repo=process.env.GITHUB_REPO,token=process.env.GITHUB_TOKEN;
+ if(!repo||!token)return null;
+ const safe=String(originalname||'image').replace(/[^a-zA-Z0-9._-]/g,'_');
+ const path=`uploads/${Date.now()}-${crypto.randomBytes(4).toString('hex')}-${safe}`;
+ const f=await github('PUT',path,{message:'Upload car image',content:buffer.toString('base64'),branch:process.env.GITHUB_BRANCH||'main'});
+ return f?.content?.download_url||`https://raw.githubusercontent.com/${repo}/${process.env.GITHUB_BRANCH||'main'}/${path}`;
+}
+async function router(req,res){
+ const p=normalizePath(req);
+ if(req.method==='GET'&&(p==='/'||p==='/health'))return res.json({ok:true,service:'automobile-elkheshen-api'});
+ if(req.method==='GET'&&p==='/products')return res.json(await readProducts());
+ if(req.method==='GET'&&p==='/admin/products'){return auth(req,res,async()=>res.json(await readProducts()))}
+ if(req.method==='POST'&&p==='/admin/upload-images'){
+  return auth(req,res,()=>upload.array('images',20)(req,res,async err=>{
+   if(err)return res.status(400).json({error:err.message});
+   try{let urls=[];for(const f of req.files||[]){let u=await uploadImage(f.buffer,f.originalname);if(u)urls.push(u)}res.json({images:urls})}catch(e){res.status(500).json({error:e.message})}
+  }));
+ }
+ if(req.method==='POST'&&p==='/admin/products')return auth(req,res,async()=>{try{let a=await readProducts();let n=clean(req.body);n.id=n.id||crypto.randomUUID();a.push(n);res.json(clean(await writeProducts(a).then(()=>n)))}catch(e){res.status(500).json({error:e.message})}});
+ const m=p.match(/^\/admin\/products\/([^/]+)$/);
+ if(m&&['PUT','DELETE'].includes(req.method))return auth(req,res,async()=>{
+  try{let a=await readProducts(),i=a.findIndex(x=>String(x.id)===decodeURIComponent(m[1]));if(i<0)return res.status(404).json({error:'السيارة غير موجودة'});
+   if(req.method==='DELETE')a.splice(i,1);else a[i]=clean({...a[i],...req.body,id:a[i].id});
+   await writeProducts(a);res.json({ok:true,products:a});
+  }catch(e){res.status(500).json({error:e.message})}
+ });
+ if(req.method==='POST'&&p==='/order')return res.json({ok:true});
+ res.status(404).json({error:'NOT_FOUND',path:p});
+}
+app.all('*',(req,res,next)=>router(req,res).catch(e=>res.status(500).json({error:e.message})));
+module.exports=app;

@@ -14,9 +14,16 @@ const DEFAULT_PRODUCTS = [
   { id:'hyundai-tucson', name:'هيونداي توسان', price:1450000, year:'2021', category:'suv', transmission:'أوتوماتيك', fuel:'بنزين', badge:'الأكثر طلبًا', description:'SUV عملية ومناسبة للاستخدام اليومي والعائلي. تواصل لمعرفة التجهيزات.', image:'https://images.unsplash.com/photo-1621007947382-bb3c3994e3fb?auto=format&fit=crop&w=1000&q=85', images:['https://images.unsplash.com/photo-1621007947382-bb3c3994e3fb?auto=format&fit=crop&w=1000&q=85'] }
 ];
 
+function decodeAdminPassword(req){
+  const encoded=req.headers['x-admin-password-b64'];
+  if(encoded){
+    try{return Buffer.from(String(encoded),'base64').toString('utf8');}catch{}
+  }
+  return req.headers['x-admin-password'] || '';
+}
 function auth(req,res,next){
   if(!ADMIN_PASSWORD) return res.status(500).json({error:'لم يتم ضبط ADMIN_PASSWORD على Vercel.'});
-  if(req.headers['x-admin-password'] !== ADMIN_PASSWORD) return res.status(401).json({error:'كلمة المرور غير صحيحة.'});
+  if(decodeAdminPassword(req) !== ADMIN_PASSWORD) return res.status(401).json({error:'كلمة المرور غير صحيحة.'});
   next();
 }
 const GH_API='https://api.github.com';
